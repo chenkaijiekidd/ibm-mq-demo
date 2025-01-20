@@ -13,9 +13,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.util.StopWatch;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Author: Kidd
@@ -54,7 +56,7 @@ public class MessageConsumer {
         // 处理完成后，由于事务管理，消息会自动确认
     }
 
-    @Scheduled(fixedRate = 1000) // 每 2 秒消费一次，您可以根据需要调整
+    //@Scheduled(fixedRate = 5, timeUnit = TimeUnit.SECONDS) // 每 2 秒消费一次，您可以根据需要调整
     public void receiveBatchMessages(){
         // Create a transaction manager object that will be used to control commit/rollback of operations.
         JmsTransactionManager tm = new JmsTransactionManager();
@@ -69,7 +71,11 @@ public class MessageConsumer {
         try{
             // 在会话中接收批量消息
             for (int i = 0; i < BATCH_SIZE; i++) {
+                StopWatch watch = new StopWatch();
+                watch.start();
                 Message message = jmsTemplate.receive(queueName);
+                watch.stop();
+                log.info("consume message time: " + watch.getTotalTimeMillis() + "ms");
                 if (message != null) {
                     messageList.add(message);
                 } else {
@@ -78,10 +84,11 @@ public class MessageConsumer {
             }
 
             // 处理接收到的批量消息
-            processMessages(messageList);
+            //processMessages(messageList);
 
             // 手动提交事务
             tm.commit(status);
+            log.info("message batch process completed =========================================");
 
         }catch (Exception e){
 

@@ -4,11 +4,14 @@ package com.eclipseinfo.ibmmqdemo.config;
 import com.ibm.mq.jakarta.jms.MQQueueConnectionFactory;
 import com.ibm.msg.client.jakarta.wmq.WMQConstants;
 import jakarta.jms.ConnectionFactory;
+import jakarta.jms.Session;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory;
+import org.springframework.jms.connection.JmsTransactionManager;
 import org.springframework.jms.core.JmsTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration
 public class JmsConfig {
@@ -31,6 +34,11 @@ public class JmsConfig {
     @Value("${ibm.mq.password}")
     private String password;
 
+/*    @Bean
+    public PlatformTransactionManager transactionManager(ConnectionFactory connectionFactory){
+        return new JmsTransactionManager(connectionFactory);
+    }*/
+
     @Bean
     public ConnectionFactory connectionFactory() throws Exception {
         MQQueueConnectionFactory factory = new MQQueueConnectionFactory();
@@ -44,6 +52,8 @@ public class JmsConfig {
         factory.setStringProperty(WMQConstants.USERID, user);
         factory.setStringProperty(WMQConstants.PASSWORD, password);
 
+
+
         return factory;
     }
 
@@ -56,7 +66,11 @@ public class JmsConfig {
     public DefaultJmsListenerContainerFactory jmsListenerContainerFactory(ConnectionFactory connectionFactory) {
         DefaultJmsListenerContainerFactory factory = new DefaultJmsListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
-        factory.setSessionAcknowledgeMode(1); //auto ack
+        //factory.setSessionAcknowledgeMode(1); //auto ack
+        //factory.setTransactionManager(transactionManager);
+        //factory.setTransactionManager(new JmsTransactionManager(connectionFactory));
+        factory.setSessionTransacted(false);
+        factory.setSessionAcknowledgeMode(Session.CLIENT_ACKNOWLEDGE);
         return factory;
     }
 }
