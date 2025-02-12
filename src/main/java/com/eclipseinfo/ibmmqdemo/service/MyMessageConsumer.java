@@ -1,10 +1,12 @@
 package com.eclipseinfo.ibmmqdemo.service;
 
 
-import jakarta.jms.Message;
-import jakarta.jms.TextMessage;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import jakarta.jms.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jms.connection.JmsTransactionManager;
@@ -15,9 +17,9 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.util.StopWatch;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Author: Kidd
@@ -27,13 +29,25 @@ import java.util.concurrent.TimeUnit;
 @Service
 @Slf4j
 @EnableTransactionManagement
-public class MessageConsumer {
+public class MyMessageConsumer {
 
     @Autowired
     private JmsTemplate jmsTemplate;
     @Value("${ibm.mq.queue}")
     private String queueName;
-    private static final int BATCH_SIZE = 100;
+    private static final int BATCH_SIZE = 3;
+
+
+    private Connection connection;
+    private Session session;
+    private MessageConsumer consumer;
+
+    private List<Message> messages = new ArrayList<>();
+
+
+    @Qualifier("myConnectionFactory")
+    @Autowired
+    private ConnectionFactory cf;
 
     // 提供一个Bean，用于动态返回队列名称
     @Bean(name = "messageDestination")
@@ -73,6 +87,7 @@ public class MessageConsumer {
             for (int i = 0; i < BATCH_SIZE; i++) {
                 StopWatch watch = new StopWatch();
                 watch.start();
+                jmsTemplate.setReceiveTimeout(10); // 10毫秒
                 Message message = jmsTemplate.receive(queueName);
                 watch.stop();
                 log.info("consume message time: " + watch.getTotalTimeMillis() + "ms");
@@ -95,6 +110,70 @@ public class MessageConsumer {
             tm.rollback(status);
             e.printStackTrace();
 
+        }
+    }
+
+    @PostConstruct
+    public void init() throws JMSException {
+
+        connection = cf.createConnection();
+        connection.start();
+
+        session = connection.createSession(false, Session.CLIENT_ACKNOWLEDGE);
+        Destination destination = session.createQueue(queueName);
+        consumer = session.createConsumer(destination);
+    }
+
+    @PreDestroy
+    public void cleanup() {
+        try {
+            if (consumer != null) consumer.close();
+            if (session != null) session.close();
+            if (connection != null) connection.close();
+        } catch (JMSException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Scheduled(fixedRate = 1000) // 每秒执行一次
+    public void consumeMessages() {
+        try {
+            Message message = consumer.receiveNoWait(); // 非阻塞接收
+            if (message != null) {
+                messages.add(message);
+                System.out.println("Received message. Current batch size: " + messages.size() + "|" + messages);
+            }
+
+            // 检查是否需要处理消息
+            if (shouldProcessMessages()) {
+                processAndAcknowledgeMessages();
+            }
+        } catch (Exception e) {
+            System.err.println("Error receiving or processing message: " + e.getMessage());
+        }
+    }
+
+    private boolean shouldProcessMessages() {
+        return messages.size() >= BATCH_SIZE;
+    }
+
+    private void processAndAcknowledgeMessages() {
+        if (messages.isEmpty()) {
+            return;
+        }
+
+        try {
+            //processAndWriteMessages(messages);
+            for (Message msg : messages) {
+                msg.acknowledge();
+            }
+            System.out.println("Batch processed and acknowledged successfully. Messages count: " + messages.size());
+        } catch (Exception e) {
+            System.err.println("Error processing batch: " + e.getMessage());
+            // 不确认消息，它们将被重新传递
+        } finally {
+            messages.clear();
+            //lastProcessTime = System.currentTimeMillis();
         }
     }
 

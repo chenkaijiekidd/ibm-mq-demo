@@ -20,12 +20,12 @@ import java.util.List;
 @Component
 public class MessageListener {
 
-    @JmsListener(destination = "DEV.QUEUE.1", containerFactory = "jmsListenerContainerFactory")
+    //@JmsListener(destination = "DEV.QUEUE.1", containerFactory = "jmsListenerContainerFactory")
     public void consumMessage(Message message) throws Exception {
 
         String msgStr = ((TextMessage) message).getText();
 
-        if (msgStr.equals("25")){
+        if (msgStr.equals("8")){
             throw new RuntimeException("Process error: " + msgStr);
         } else {
             log.info("Processing message: " + msgStr);
@@ -36,46 +36,58 @@ public class MessageListener {
 
     private List<Message> batchMessages = new ArrayList<>();
 
-    private static final int BATCH_SIZE = 10;
+    private static final int BATCH_SIZE = 5;
 
     //@JmsListener(destination = "DEV.QUEUE.1", containerFactory = "jmsListenerContainerFactory")
     public void consumMessage(Message message, Session session) throws Exception {
-
         String msgStr = ((TextMessage) message).getText();
-        //log.info("Current acknowledge mode: " + session.getAcknowledgeMode());
-        log.info("Processing message: " + msgStr);
+        log.info("Received message: " + msgStr);
 
         try {
             if (batchMessages.size() < BATCH_SIZE) {
                 batchMessages.add(message);
-            } else {
-                processMessages();
-                // 在成功处理所有消息后，确认整个批次
-                for (Message msg : batchMessages) {
-                    msg.acknowledge();
+                if (batchMessages.size() == BATCH_SIZE) {
+                    processAndAcknowledgeBatch();
                 }
-                batchMessages.clear();
+            } else {
+                // 如果已经达到批处理大小，先处理当前批次
+                processAndAcknowledgeBatch();
+                // 然后开始新的批次
+                batchMessages.add(message);
             }
         } catch (Exception e) {
             log.error("Error processing messages", e);
-            // 在 CLIENT_ACKNOWLEDGE 模式下，如果没有调用 acknowledge()，
-            // 消息会被自动重新传递，所以这里不需要额外的操作
-            //batchMessages.clear(); // 清空批次，准备重新接收
+            // 发生错误时，清空批次并重新开始
+            batchMessages.clear();
+            throw e; // 重新抛出异常，让Spring重试机制处理
+        }
+    }
+
+    private void processAndAcknowledgeBatch() throws Exception {
+        try {
+            processMessages();
+            // 全部处理成功后，确认整个批次
+            for (Message msg : batchMessages) {
+                msg.acknowledge();
+            }
+            log.info("Batch processed and acknowledged successfully");
+        } finally {
+            batchMessages.clear();
         }
     }
 
     private void processMessages() throws Exception {
         for (Message message : batchMessages) {
             TextMessage textMessage = (TextMessage) message;
-            if (Integer.parseInt(textMessage.getText()) >= 25) {
-                //throw new RuntimeException("Process error: " + textMessage.getText());
-                System.exit(1);
+            int messageValue = Integer.parseInt(textMessage.getText());
+            if (messageValue >= 8) {
+                throw new RuntimeException("Process error: " + textMessage.getText());
             } else {
-                log.info("Processing message: " + textMessage.getText());
+                log.info("Batch processing message: " + textMessage.getText());
             }
         }
         log.info("================== Process end of this batch ==========================");
-
     }
+
 
 }

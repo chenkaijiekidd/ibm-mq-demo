@@ -5,6 +5,7 @@ import com.ibm.mq.jakarta.jms.MQQueueConnectionFactory;
 import com.ibm.msg.client.jakarta.wmq.WMQConstants;
 import jakarta.jms.ConnectionFactory;
 import jakarta.jms.Session;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -39,7 +40,7 @@ public class JmsConfig {
         return new JmsTransactionManager(connectionFactory);
     }*/
 
-    @Bean
+    @Bean(name = "myConnectionFactory")   
     public ConnectionFactory connectionFactory() throws Exception {
         MQQueueConnectionFactory factory = new MQQueueConnectionFactory();
         factory.setQueueManager(queueManager);
@@ -58,12 +59,12 @@ public class JmsConfig {
     }
 
     @Bean
-    public JmsTemplate jmsTemplate(ConnectionFactory connectionFactory) {
+    public JmsTemplate jmsTemplate(@Qualifier("myConnectionFactory") ConnectionFactory connectionFactory) {
         return new JmsTemplate(connectionFactory);
     }
 
     @Bean
-    public DefaultJmsListenerContainerFactory jmsListenerContainerFactory(ConnectionFactory connectionFactory) {
+    public DefaultJmsListenerContainerFactory jmsListenerContainerFactory(@Qualifier("myConnectionFactory") ConnectionFactory connectionFactory) {
         DefaultJmsListenerContainerFactory factory = new DefaultJmsListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
         //factory.setSessionAcknowledgeMode(1); //auto ack
@@ -71,6 +72,8 @@ public class JmsConfig {
         //factory.setTransactionManager(new JmsTransactionManager(connectionFactory));
         factory.setSessionTransacted(false);
         factory.setSessionAcknowledgeMode(Session.CLIENT_ACKNOWLEDGE);
+        /*factory.setSessionTransacted(true);
+        factory.setSessionAcknowledgeMode(Session.SESSION_TRANSACTED);*/
         return factory;
     }
 }
