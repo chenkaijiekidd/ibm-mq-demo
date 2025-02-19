@@ -1,6 +1,7 @@
 package com.eclipseinfo.ibmmqdemo.config;
 
 
+import com.eclipseinfo.ibmmqdemo.service.JavaxMessageListener;
 import com.ibm.mq.jakarta.jms.MQQueueConnectionFactory;
 import com.ibm.msg.client.jakarta.wmq.WMQConstants;
 import jakarta.jms.ConnectionFactory;
@@ -12,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory;
 import org.springframework.jms.connection.JmsTransactionManager;
 import org.springframework.jms.core.JmsTemplate;
+import org.springframework.jms.listener.DefaultMessageListenerContainer;
 import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration
@@ -58,12 +60,14 @@ public class JmsConfig {
         return factory;
     }
 
-    @Bean
-    public JmsTemplate jmsTemplate(@Qualifier("myConnectionFactory") ConnectionFactory connectionFactory) {
-        return new JmsTemplate(connectionFactory);
-    }
+//    @Bean
+//    public JmsTemplate jmsTemplate(@Qualifier("myConnectionFactory") ConnectionFactory connectionFactory) {
+//        JmsTemplate template = new JmsTemplate(connectionFactory);
+//        template.setSessionAcknowledgeMode(Session.CLIENT_ACKNOWLEDGE);
+//        return template;
+//    }
 
-    @Bean
+/*    @Bean
     public DefaultJmsListenerContainerFactory jmsListenerContainerFactory(@Qualifier("myConnectionFactory") ConnectionFactory connectionFactory) {
         DefaultJmsListenerContainerFactory factory = new DefaultJmsListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
@@ -72,8 +76,24 @@ public class JmsConfig {
         //factory.setTransactionManager(new JmsTransactionManager(connectionFactory));
         factory.setSessionTransacted(false);
         factory.setSessionAcknowledgeMode(Session.CLIENT_ACKNOWLEDGE);
-        /*factory.setSessionTransacted(true);
-        factory.setSessionAcknowledgeMode(Session.SESSION_TRANSACTED);*/
+        *//*factory.setSessionTransacted(true);
+        factory.setSessionAcknowledgeMode(Session.SESSION_TRANSACTED);*//*
         return factory;
+    }*/
+
+    @Bean
+    public DefaultMessageListenerContainer messageListenerContainer(@Qualifier("myConnectionFactory")ConnectionFactory connectionFactory, JavaxMessageListener messageListener) {
+        DefaultMessageListenerContainer container = new DefaultMessageListenerContainer();
+        container.setConnectionFactory(connectionFactory);
+        container.setDestinationName("DEV.QUEUE.1");
+        container.setMessageListener(messageListener);
+        container.setSessionAcknowledgeMode(Session.CLIENT_ACKNOWLEDGE);
+        container.setSessionTransacted(true);
+        return container;
+    }
+
+    @Bean
+    public Session session(@Qualifier("myConnectionFactory")ConnectionFactory connectionFactory) throws Exception {
+        return connectionFactory.createConnection().createSession(true, Session.SESSION_TRANSACTED);
     }
 }

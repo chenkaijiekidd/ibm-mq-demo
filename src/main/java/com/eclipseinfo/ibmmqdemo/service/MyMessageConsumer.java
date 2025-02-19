@@ -135,7 +135,7 @@ public class MyMessageConsumer {
         }
     }
 
-    @Scheduled(fixedRate = 1000) // 每秒执行一次
+    //@Scheduled(fixedRate = 1000) // 每秒执行一次
     public void consumeMessages() {
         try {
             Message message = consumer.receiveNoWait(); // 非阻塞接收
